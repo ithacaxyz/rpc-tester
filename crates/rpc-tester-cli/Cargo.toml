@@ -1,0 +1,23 @@
+[package]
+name = "rpc-tester-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+rpc-tester.workspace = true
+
+reth-rpc-api.workspace = true
+reth-tracing.workspace = true
+
+alloy-rpc-types.workspace = true
+
+clap.workspace = true
+eyre.workspace = true
+jsonrpsee = { workspace = true, features = ["server", "macros"] }
+tokio = { workspace = true, default-features = false }
