@@ -102,11 +102,10 @@ where
             ]);
 
             // // Transaction/Receipt based RPCs
-            for (index, tx) in block.transactions.into_transactions().enumerate() {
+            for (index, tx_hash) in block.transactions.hashes().enumerate() {
                 let tracer_opts = Some(GethDebugTracingOptions::default().with_tracer(
                     GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::CallTracer),
                 ));
-                let tx_hash = *(tx.inner.tx_hash());
 
                 if let Some(receipt) = self.rpc2.transaction_receipt(tx_hash).await? {
                     if let Some(log) = receipt.logs.first().cloned() {
@@ -137,8 +136,8 @@ where
                     rpc!(self, raw_transaction_by_block_number_and_index, block_tag, index ),
                     rpc!(self, transaction_by_block_number_and_index, block_tag, index ),
                     rpc!(self, transaction_receipt, tx_hash),
-                    rpc!(self, transaction_count, tx.from, Some(block_id)),
-                    rpc!(self, balance, tx.from, Some(block_id)),
+                    // rpc!(self, transaction_count, tx.from, Some(block_id)),
+                    // rpc!(self, balance, tx.from, Some(block_id)),
                     rpc!(self, debug_trace_transaction, tx_hash, tracer_opts)
                 ]);
 
@@ -176,7 +175,7 @@ where
     ) -> Result<(Block, BlockHash, BlockNumberOrTag, BlockId), eyre::Error> {
         let block: Block = self
             .rpc2
-            .block_by_number(block_number.into(), true)
+            .block_by_number(block_number.into(), false)
             .await?
             .expect("should have block from range");
         assert_eq!(block.header.number, block_number);
