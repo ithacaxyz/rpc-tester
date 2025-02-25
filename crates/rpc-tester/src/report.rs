@@ -16,7 +16,7 @@ pub(crate) fn report(results_by_block: ReportResults) -> eyre::Result<()> {
 
         for (name, result) in results {
             match result {
-                Ok(_) => continue,
+                Ok(_) => {}
                 Err(TestError::Diff { rpc1, rpc2 }) => {
                     // While results are different, we only report it as error if __RPC1__ is
                     // missing/mismatching any element against RPC2.

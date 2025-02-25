@@ -1,42 +1,42 @@
 //! [`RpcTester`] implementation.
 
 use super::{MethodName, TestError};
-use crate::{report::report, rpc};
-use alloy_primitives::{BlockHash, BlockNumber};
-use alloy_rpc_types::{
-    // trace::geth::{GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions},
-    Block,
-    BlockId,
-    BlockNumberOrTag,
-    Filter,
-    Index,
-    Receipt,
-    Transaction,
+use crate::{get_logs, report::report, rpc, rpc_raw, rpc_with_block};
+use alloy_primitives::{Address, BlockHash, BlockNumber, U256};
+use alloy_provider::{
+    ext::{DebugApi, TraceApi},
+    network::{AnyNetwork, AnyRpcBlock, AnyRpcHeader, TransactionResponse},
+    Provider,
 };
+use alloy_rpc_types::{BlockId, BlockNumberOrTag, Filter};
 use alloy_rpc_types_trace::geth::{
     GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
 };
 use eyre::Result;
 use futures::Future;
-use jsonrpsee::tracing::debug;
-use reth_rpc_api::{
-    DebugApiClient, EthApiClient, EthFilterApiClient, RethApiClient, TraceApiClient,
-};
-use reth_tracing::tracing::{info, trace};
 use serde::Serialize;
-use std::{collections::BTreeMap, fmt::Debug, ops::RangeInclusive, pin::Pin};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt::Debug,
+    future::IntoFuture,
+    ops::RangeInclusive,
+    pin::Pin,
+};
+use tracing::{debug, info, trace};
 
 // Alias type
 type BlockTestResults = BTreeMap<BlockNumber, Vec<(MethodName, Result<(), TestError>)>>;
 
+// Alias type for BalanceChanges
+type BalanceChanges = HashMap<Address, U256>;
 /// Type that runs queries two nodes rpc queries and ensures that the first is at least a superset
 /// of the second.
 #[derive(Debug)]
-pub struct RpcTester<C> {
+pub struct RpcTester<P: Provider<AnyNetwork>> {
     /// First RPC node.
-    rpc1: C,
+    rpc1: P,
     /// Second RPC node.
-    rpc2: C,
+    rpc2: P,
     /// Whether to query tracing methods.
     use_tracing: bool,
     /// Whether to query reth namespace.
@@ -46,23 +46,16 @@ pub struct RpcTester<C> {
     use_all_txes: bool,
 }
 
-impl<C> RpcTester<C> {
+impl<P: Provider<AnyNetwork>> RpcTester<P> {
     /// Returns [`RpcTesterBuilder`].
-    pub const fn builder(rpc1: C, rpc2: C) -> RpcTesterBuilder<C> {
+    pub const fn builder(rpc1: P, rpc2: P) -> RpcTesterBuilder<P> {
         RpcTesterBuilder::new(rpc1, rpc2)
     }
 }
 
-impl<C> RpcTester<C>
+impl<P> RpcTester<P>
 where
-    C: EthApiClient<Transaction, Block, Receipt>
-        + EthFilterApiClient<Transaction>
-        + RethApiClient
-        + TraceApiClient
-        + DebugApiClient
-        + Clone
-        + Send
-        + Sync,
+    P: Provider<AnyNetwork> + Clone + Send + Sync,
 {
     /// Verifies that results from `rpc1` are at least a superset of `rpc2`.
     pub async fn run(&self, block_range: RangeInclusive<BlockNumber>) -> Result<()> {
@@ -82,65 +75,82 @@ where
 
             let (block, block_hash, block_tag, block_id) = self.fetch_block(block_number).await?;
 
-            // Block based
             #[rustfmt::skip]
-            tests.extend(vec![
-                rpc!(self, block_by_hash, block_hash, true),
-                rpc!(self, block_by_number, block_tag, true),
-                rpc!(self, block_transaction_count_by_hash, block_hash),
-                rpc!(self, block_transaction_count_by_number, block_tag),
-                rpc!(self, block_uncles_count_by_hash, block_hash),
-                rpc!(self, block_uncles_count_by_number, block_tag),
-                rpc!(self, block_receipts, block_id),
-                rpc!(self, header_by_number, block_tag),
-                rpc!(self, header_by_hash, block_hash),
-                rpc!(self, reth_get_balance_changes_in_block, block_id),
-                // Response is too big & Http(TooLarge))
-                // test_debug_rpc_method!(self, debug_trace_block_by_number, block_tag, None)
+            let block_calls = vec![
+                rpc!(
+                    self,
+                    get_block_by_hash,
+                    block_hash,
+                    alloy_rpc_types::BlockTransactionsKind::Full
+                ),
+                rpc!(
+                    self,
+                    get_block_by_number,
+                    block_tag,
+                    alloy_rpc_types::BlockTransactionsKind::Full
+                ),
+                rpc!(self, get_block_transaction_count_by_hash, block_hash),
+                rpc!(self, get_block_transaction_count_by_number, block_tag),
+                rpc!(self, get_uncle_count, BlockId::Hash(block_hash.into())),
+                rpc!(self, get_uncle_count, BlockId::Number(block_tag)),
+                rpc!(self, get_block_receipts, block_id),
+                rpc_raw!(self, getHeaderByNumber, AnyRpcHeader, (block_tag,)),
+                rpc_raw!(self, getHeaderByHash, AnyRpcHeader, (block_hash,)),
+                rpc_raw!(self, reth_getBalanceChangesInBlock, BalanceChanges, (block_id,)),
                 rpc!(self, trace_block, block_id),
-                rpc!(self, logs, Filter::new().select(block_number)),
-            ]);
+                get_logs!(self, &Filter::new().select(block_number))
+            ];
+
+            tests.extend(block_calls);
 
             // // Transaction/Receipt based RPCs
-            for (index, tx) in block.transactions.into_transactions().enumerate() {
-                let tracer_opts = Some(GethDebugTracingOptions::default().with_tracer(
+            for (index, (tx_hash, tx_from)) in
+                block.transactions.txns().map(|t| (t.tx_hash(), t.from)).enumerate()
+            {
+                let tracer_opts = GethDebugTracingOptions::default().with_tracer(
                     GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::CallTracer),
-                ));
-                let tx_hash = *(tx.inner.tx_hash());
+                );
 
-                if let Some(receipt) = self.rpc2.transaction_receipt(tx_hash).await? {
-                    if let Some(log) = receipt.logs.first().cloned() {
+                if let Some(receipt) = self.rpc2.get_transaction_receipt(tx_hash).await? {
+                    if let Some(log) = receipt.inner.inner.logs().first().map(|l| l.address()) {
                         #[rustfmt::skip]
-                        tests.push(
-                            rpc!(self, logs, Filter::new().select(block_number).address(log.address))
-                        );
+                        tests.push(get_logs!(self, Filter::new().select(block_number).address(log)));
                     }
 
-                    if let Some(topic) =
-                        receipt.logs.last().and_then(|log| log.data.topics().first()).copied()
+                    if let Some(topic) = receipt
+                        .inner
+                        .inner
+                        .logs()
+                        .last()
+                        .and_then(|log| log.topics().first())
+                        .copied()
                     {
                         #[rustfmt::skip]
                         tests.push(
-                            rpc!(self, logs, Filter::new().select(block_number).event_signature(topic))
+                            get_logs!(self, Filter::new().select(block_number).event_signature(topic))
                         );
                     }
                 }
 
-                let index: Index = index.into();
-
                 #[rustfmt::skip]
-                tests.extend(vec![
-                    rpc!(self, raw_transaction_by_hash, tx_hash),
-                    rpc!(self, transaction_by_hash, tx_hash),
-                    rpc!(self, raw_transaction_by_block_hash_and_index, block_hash,index),
-                    rpc!(self, transaction_by_block_hash_and_index, block_hash, index),
-                    rpc!(self, raw_transaction_by_block_number_and_index, block_tag, index ),
-                    rpc!(self, transaction_by_block_number_and_index, block_tag, index ),
-                    rpc!(self, transaction_receipt, tx_hash),
-                    rpc!(self, transaction_count, tx.from, Some(block_id)),
-                    rpc!(self, balance, tx.from, Some(block_id)),
-                    rpc!(self, debug_trace_transaction, tx_hash, tracer_opts)
-                ]);
+                let tx_calls = vec![
+                    rpc!(self, get_raw_transaction_by_hash, tx_hash),
+                    rpc!(self, get_transaction_by_hash, tx_hash),
+                    rpc!(self, get_raw_transaction_by_block_hash_and_index, block_hash, index), /* TODO: Re-check */
+                    rpc!(self, get_transaction_by_block_hash_and_index, block_hash, index),
+                    rpc!(
+                        self,
+                        get_raw_transaction_by_block_number_and_index,
+                        block_tag,
+                        index
+                    ),
+                    rpc!(self, get_transaction_by_block_number_and_index, block_tag, index),
+                    rpc!(self, get_transaction_receipt, tx_hash),
+                    rpc_with_block!(self, get_transaction_count, tx_from; block_id),
+                    rpc_with_block!(self, get_balance, tx_from; block_id),
+                    rpc!(self, debug_trace_transaction, tx_hash, tracer_opts),
+                ];
+                tests.extend(tx_calls);
 
                 if !self.use_all_txes {
                     break;
@@ -161,7 +171,7 @@ where
         report(vec![(
             format!("{}..={}", start, end),
             futures::future::join_all([
-                rpc!(self, logs, Filter::new().from_block(start).to_block(end)
+                get_logs!(self, Filter::new().from_block(start).to_block(end)
             )])
             .await,
         )])?;
@@ -173,10 +183,10 @@ where
     async fn fetch_block(
         &self,
         block_number: u64,
-    ) -> Result<(Block, BlockHash, BlockNumberOrTag, BlockId), eyre::Error> {
-        let block: Block = self
+    ) -> Result<(AnyRpcBlock, BlockHash, BlockNumberOrTag, BlockId), eyre::Error> {
+        let block = self
             .rpc2
-            .block_by_number(block_number.into(), true)
+            .get_block_by_number(block_number.into(), true.into())
             .await?
             .expect("should have block from range");
         assert_eq!(block.header.number, block_number);
@@ -195,7 +205,7 @@ where
         method_call: F,
     ) -> (MethodName, Result<(), TestError>)
     where
-        F: Fn(&'a C) -> Fut + 'a,
+        F: Fn(&'a P) -> Fut + 'a,
         Fut: std::future::Future<Output = Result<T, E>> + 'a + Send,
         T: PartialEq + Debug + Serialize,
         E: Debug,
@@ -232,11 +242,11 @@ where
 
 /// Builder for [`RpcTester`].
 #[derive(Debug)]
-pub struct RpcTesterBuilder<C> {
+pub struct RpcTesterBuilder<P: Provider<AnyNetwork>> {
     /// First RPC node.
-    rpc1: C,
+    rpc1: P,
     /// Second RPC node.
-    rpc2: C,
+    rpc2: P,
     /// Whether to query tracing methods.
     use_tracing: bool,
     /// Whether to query reth namespace.
@@ -246,9 +256,9 @@ pub struct RpcTesterBuilder<C> {
     use_all_txes: bool,
 }
 
-impl<C> RpcTesterBuilder<C> {
+impl<P: Provider<AnyNetwork>> RpcTesterBuilder<P> {
     /// Creates a new builder with default settings.
-    pub const fn new(rpc1: C, rpc2: C) -> Self {
+    pub const fn new(rpc1: P, rpc2: P) -> Self {
         Self { rpc1, rpc2, use_tracing: false, use_reth: false, use_all_txes: false }
     }
 
@@ -272,7 +282,7 @@ impl<C> RpcTesterBuilder<C> {
     }
 
     /// Builds and returns the [`RpcTester`].
-    pub fn build(self) -> RpcTester<C> {
+    pub fn build(self) -> RpcTester<P> {
         RpcTester {
             rpc1: self.rpc1,
             rpc2: self.rpc2,
