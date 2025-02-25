@@ -1,11 +1,11 @@
 //! [`RpcTester`] implementation.
 
 use super::{MethodName, TestError};
-use crate::{get_logs, report::report, rpc, rpc_with_block};
-use alloy_primitives::{BlockHash, BlockNumber};
+use crate::{get_logs, report::report, rpc, rpc_raw, rpc_with_block};
+use alloy_primitives::{Address, BlockHash, BlockNumber, U256};
 use alloy_provider::{
     ext::{DebugApi, TraceApi},
-    network::{AnyNetwork, AnyRpcBlock, TransactionResponse},
+    network::{AnyNetwork, AnyRpcBlock, AnyRpcHeader, TransactionResponse},
     Provider,
 };
 use alloy_rpc_types::{BlockId, BlockNumberOrTag, Filter};
@@ -16,11 +16,19 @@ use eyre::Result;
 use futures::Future;
 use reth_tracing::tracing::{debug, info, trace};
 use serde::Serialize;
-use std::{collections::BTreeMap, fmt::Debug, future::IntoFuture, ops::RangeInclusive, pin::Pin};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt::Debug,
+    future::IntoFuture,
+    ops::RangeInclusive,
+    pin::Pin,
+};
 
 // Alias type
 type BlockTestResults = BTreeMap<BlockNumber, Vec<(MethodName, Result<(), TestError>)>>;
 
+// Alias type for BalanceChanges
+type BalanceChanges = HashMap<Address, U256>;
 /// Type that runs queries two nodes rpc queries and ensures that the first is at least a superset
 /// of the second.
 #[derive(Debug)]
@@ -86,9 +94,9 @@ where
                 rpc!(self, get_uncle_count, BlockId::Hash(block_hash.into())),
                 rpc!(self, get_uncle_count, BlockId::Number(block_tag)),
                 rpc!(self, get_block_receipts, block_id),
-                // rpc!(self, header_by_number, block_tag),
-                // rpc!(self, header_by_hash, block_hash),
-                // rpc!(self, reth_get_balance_changes_in_block, block_id),
+                rpc_raw!(self, getHeaderByNumber, AnyRpcHeader, (block_tag,)),
+                rpc_raw!(self, getHeaderByHash, AnyRpcHeader, (block_hash,)),
+                rpc_raw!(self, reth_getBalanceChangesInBlock, BalanceChanges, (block_id,)),
                 rpc!(self, trace_block, block_id),
                 get_logs!(self, &Filter::new().select(block_number))
             ];

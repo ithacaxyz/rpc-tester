@@ -59,3 +59,16 @@ macro_rules! get_logs {
         }) as Pin<Box<dyn Future<Output = (MethodName, Result<(), TestError>)> + Send>>
     };
 }
+
+/// Macro to create raw request and box the future result.
+#[macro_export]
+macro_rules! rpc_raw {
+    ($self:expr, $method:ident, $ret:ident $(, $args:expr )* ) => {
+        Box::pin($self.test_rpc_call(
+            stringify!($method),
+            move |provider: &P| {
+                provider.raw_request::<_, $ret>(stringify!($method).into(), $( $args.clone(), )*)
+            }
+        )) as Pin<Box<dyn Future<Output = (MethodName, Result<(), TestError>)> + Send>>
+    };
+}
