@@ -1,7 +1,7 @@
 //! [`RpcTester`] implementation.
 
 use super::{MethodName, TestError};
-use crate::{get_logs, provider, provider_with_block, report::report};
+use crate::{get_logs, report::report, rpc, rpc_with_block};
 use alloy_primitives::{BlockHash, BlockNumber};
 use alloy_provider::{
     ext::{DebugApi, TraceApi},
@@ -69,27 +69,27 @@ where
 
             #[rustfmt::skip]
             let block_calls = vec![
-                provider!(
+                rpc!(
                     self,
                     get_block_by_hash,
                     block_hash,
                     alloy_rpc_types::BlockTransactionsKind::Full
                 ),
-                provider!(
+                rpc!(
                     self,
                     get_block_by_number,
                     block_tag,
                     alloy_rpc_types::BlockTransactionsKind::Full
                 ),
-                provider!(self, get_block_transaction_count_by_hash, block_hash),
-                provider!(self, get_block_transaction_count_by_number, block_tag),
-                provider!(self, get_uncle_count, BlockId::Hash(block_hash.into())),
-                provider!(self, get_uncle_count, BlockId::Number(block_tag)),
-                provider!(self, get_block_receipts, block_id),
+                rpc!(self, get_block_transaction_count_by_hash, block_hash),
+                rpc!(self, get_block_transaction_count_by_number, block_tag),
+                rpc!(self, get_uncle_count, BlockId::Hash(block_hash.into())),
+                rpc!(self, get_uncle_count, BlockId::Number(block_tag)),
+                rpc!(self, get_block_receipts, block_id),
                 // rpc!(self, header_by_number, block_tag),
                 // rpc!(self, header_by_hash, block_hash),
                 // rpc!(self, reth_get_balance_changes_in_block, block_id),
-                provider!(self, trace_block, block_id),
+                rpc!(self, trace_block, block_id),
                 get_logs!(self, &Filter::new().select(block_number))
             ];
 
@@ -126,21 +126,21 @@ where
 
                 #[rustfmt::skip]
                 let tx_calls = vec![
-                    provider!(self, get_raw_transaction_by_hash, tx_hash),
-                    provider!(self, get_transaction_by_hash, tx_hash),
-                    provider!(self, get_raw_transaction_by_block_hash_and_index, block_hash, index), /* TODO: Re-check */
-                    provider!(self, get_transaction_by_block_hash_and_index, block_hash, index),
-                    provider!(
+                    rpc!(self, get_raw_transaction_by_hash, tx_hash),
+                    rpc!(self, get_transaction_by_hash, tx_hash),
+                    rpc!(self, get_raw_transaction_by_block_hash_and_index, block_hash, index), /* TODO: Re-check */
+                    rpc!(self, get_transaction_by_block_hash_and_index, block_hash, index),
+                    rpc!(
                         self,
                         get_raw_transaction_by_block_number_and_index,
                         block_tag,
                         index
                     ),
-                    provider!(self, get_transaction_by_block_number_and_index, block_tag, index),
-                    provider!(self, get_transaction_receipt, tx_hash),
-                    provider_with_block!(self, get_transaction_count, tx_from; block_id),
-                    provider_with_block!(self, get_balance, tx_from; block_id),
-                    provider!(self, debug_trace_transaction, tx_hash, tracer_opts),
+                    rpc!(self, get_transaction_by_block_number_and_index, block_tag, index),
+                    rpc!(self, get_transaction_receipt, tx_hash),
+                    rpc_with_block!(self, get_transaction_count, tx_from; block_id),
+                    rpc_with_block!(self, get_balance, tx_from; block_id),
+                    rpc!(self, debug_trace_transaction, tx_hash, tracer_opts),
                 ];
                 tests.extend(tx_calls);
 

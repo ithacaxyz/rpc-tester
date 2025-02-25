@@ -20,7 +20,7 @@ type MethodName = String;
 
 /// Provider macro that boxes all method future results.
 #[macro_export]
-macro_rules! provider {
+macro_rules! rpc {
     ($self:expr, $method:ident $(, $args:expr )* ) => {
         Box::pin($self.test_rpc_call(
             stringify!($method),
@@ -33,7 +33,7 @@ macro_rules! provider {
 
 /// Provider macro to call RpcWithBlock methods and boxes all future results.
 #[macro_export]
-macro_rules! provider_with_block {
+macro_rules! rpc_with_block {
     ($self:expr, $method:ident $(, $args:expr )*; $blockid:expr) => {
         Box::pin($self.test_rpc_call(
             stringify!($method),
