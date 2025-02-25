@@ -109,8 +109,6 @@ too_long_first_doc_paragraph = "allow"
 rpc-tester = { path = "crates/rpc-tester" }
 rpc-tester-cli = { path = "crates/rpc-tester-cli" }
 
-reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "0aa4701" }
-
 alloy-primitives = "0.8.21"
 alloy-rpc-types = "0.11.1"
 alloy-rpc-types-trace = "0.11.1"
@@ -125,6 +123,8 @@ serde_json = "1.0.94"
 tokio = { version = "1.39", default-features = false }
 parking_lot = "*"
 url = "2.5.4"
+tracing-subscriber = "0.3.19"
+tracing = "0.1.41"
 
 [profile.maxperf]
 inherits = "release"

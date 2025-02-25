@@ -14,7 +14,6 @@ use alloy_rpc_types_trace::geth::{
 };
 use eyre::Result;
 use futures::Future;
-use reth_tracing::tracing::{debug, info, trace};
 use serde::Serialize;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -23,6 +22,7 @@ use std::{
     ops::RangeInclusive,
     pin::Pin,
 };
+use tracing::{debug, info, trace};
 
 // Alias type
 type BlockTestResults = BTreeMap<BlockNumber, Vec<(MethodName, Result<(), TestError>)>>;

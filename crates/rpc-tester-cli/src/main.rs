@@ -3,9 +3,9 @@
 use alloy_provider::{network::AnyNetwork, Provider, ProviderBuilder};
 use alloy_rpc_types::SyncStatus;
 use clap::Parser;
-use reth_tracing::{tracing::info, RethTracer, Tracer};
 use rpc_tester::RpcTester;
 use std::{ops::RangeInclusive, thread::sleep, time::Duration};
+use tracing::info;
 use url::Url;
 
 /// The rpc-tester-cli interface.
@@ -39,7 +39,7 @@ pub struct CliArgs {
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
-    RethTracer::new().init()?;
+    tracing_subscriber::fmt::init();
 
     let args = CliArgs::parse();
 
