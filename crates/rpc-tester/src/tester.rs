@@ -83,14 +83,14 @@ where
                 ),
                 provider!(self, get_block_transaction_count_by_hash, block_hash),
                 provider!(self, get_block_transaction_count_by_number, block_tag),
-                // provider!(self, get_block_uncles_count_by_hash, block_hash),
-                // provider!(self, get_block_uncles_count_by_number, block_tag),
+                provider!(self, get_uncle_count, BlockId::Hash(block_hash.into())),
+                provider!(self, get_uncle_count, BlockId::Number(block_tag)),
                 provider!(self, get_block_receipts, block_id),
                 // rpc!(self, header_by_number, block_tag),
                 // rpc!(self, header_by_hash, block_hash),
                 // rpc!(self, reth_get_balance_changes_in_block, block_id),
                 provider!(self, trace_block, block_id),
-                // provider!(self, get_logs, &Filter::new().select(block_number))
+                get_logs!(self, &Filter::new().select(block_number))
             ];
 
             tests.extend(block_calls);
@@ -117,11 +117,6 @@ where
                         .and_then(|log| log.topics().first())
                         .copied()
                     {
-                        // #[rustfmt::skip]
-                        // tests.push(
-                        //     provider!(self, get_logs,
-                        // &Filter::new().select(block_number).event_signature(topic))
-                        // );
                         #[rustfmt::skip]
                         tests.push(
                             get_logs!(self, Filter::new().select(block_number).event_signature(topic))
