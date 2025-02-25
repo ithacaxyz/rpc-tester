@@ -109,9 +109,6 @@ too_long_first_doc_paragraph = "allow"
 rpc-tester = { path = "crates/rpc-tester" }
 rpc-tester-cli = { path = "crates/rpc-tester-cli" }
 
-# reth-rpc-api = { git = "https://github.com/paradigmxyz/reth", rev = "0aa4701", features = [
-#     "client",
-# ] }
 reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "0aa4701" }
 
 alloy-primitives = "0.8.21"

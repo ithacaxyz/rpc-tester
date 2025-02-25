@@ -31,7 +31,7 @@ macro_rules! rpc {
     };
 }
 
-/// Provider macro to call RpcWithBlock methods and boxes all future results.
+/// Provider macro to call methods that return `RpcWithBlock` and box the future results.
 #[macro_export]
 macro_rules! rpc_with_block {
     ($self:expr, $method:ident $(, $args:expr )*; $blockid:expr) => {
