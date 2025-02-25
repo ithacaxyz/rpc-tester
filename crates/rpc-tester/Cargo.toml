@@ -8,17 +8,16 @@ edition = "2021"
 workspace = true
 
 [dependencies]
-reth-rpc-api.workspace = true
 reth-tracing.workspace = true
 
 alloy-primitives.workspace = true
 alloy-rpc-types.workspace = true
 alloy-rpc-types-trace.workspace = true
+alloy-provider = { workspace = true, features = ["trace-api", "debug-api"] }
 
 assert-json-diff.workspace = true
 eyre.workspace = true
 futures.workspace = true
-jsonrpsee = { workspace = true, features = ["server", "macros"] }
 serde = { workspace = true, default-features = false }
 serde_json.workspace = true
 tokio = { workspace = true, default-features = false }

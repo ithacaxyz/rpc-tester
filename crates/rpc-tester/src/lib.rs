@@ -18,15 +18,44 @@ type ReportResults = Vec<(String, Vec<(MethodName, Result<(), TestError>)>)>;
 /// Alias type
 type MethodName = String;
 
-/// RPC macro that boxes all method future results.
+/// Provider macro that boxes all method future results.
 #[macro_export]
-macro_rules! rpc {
+macro_rules! provider {
     ($self:expr, $method:ident $(, $args:expr )* ) => {
         Box::pin($self.test_rpc_call(
             stringify!($method),
-            move |client: &C|  {
-                client.$method( $( $args.clone(), )*)
+            move |provider: &P| {
+                provider.$method( $( $args.clone(), )*)
             }
-        )) as Pin<Box<dyn Future<Output = ($crate::MethodName, Result<(), $crate::TestError>)> + Send>>
+        )) as Pin<Box<dyn Future<Output = (MethodName, Result<(), TestError>)> + Send>>
+    };
+}
+
+/// Provider macro to call RpcWithBlock methods and boxes all future results.
+#[macro_export]
+macro_rules! provider_with_block {
+    ($self:expr, $method:ident $(, $args:expr )*; $blockid:expr) => {
+        Box::pin($self.test_rpc_call(
+            stringify!($method),
+            move |provider: &P| {
+                provider.$method( $( $args.clone(), )*).block_id($blockid).into_future()
+            }
+        )) as Pin<Box<dyn Future<Output = (MethodName, Result<(), TestError>)> + Send>>
+    };
+}
+
+/// Macro to call the `get_logs` rpc method and box the future result.
+#[macro_export]
+macro_rules! get_logs {
+    ($self:expr, $arg:expr) => {
+        Box::pin(async move {
+            let filter = $arg.clone();
+            $self
+                .test_rpc_call(stringify!(get_logs), move |provider: &P| {
+                    let filter = filter.clone();
+                    async move { provider.get_logs(&filter).await }
+                })
+                .await
+        }) as Pin<Box<dyn Future<Output = (MethodName, Result<(), TestError>)> + Send>>
     };
 }

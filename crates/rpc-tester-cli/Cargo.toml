@@ -11,13 +11,14 @@ workspace = true
 
 [dependencies]
 rpc-tester.workspace = true
-
-reth-rpc-api.workspace = true
 reth-tracing.workspace = true
 
 alloy-rpc-types.workspace = true
+alloy-provider.workspace = true
 
+url.workspace = true
 clap.workspace = true
 eyre.workspace = true
-jsonrpsee = { workspace = true, features = ["server", "macros"] }
-tokio = { workspace = true, default-features = false }
+tokio = { workspace = true, default-features = false, features = [
+    "rt-multi-thread",
+] }
