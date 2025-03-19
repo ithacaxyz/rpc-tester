@@ -4,7 +4,11 @@ use alloy_provider::{network::AnyNetwork, Provider, ProviderBuilder};
 use alloy_rpc_types::SyncStatus;
 use clap::Parser;
 use rpc_tester::RpcTester;
-use std::{ops::RangeInclusive, thread::sleep, time::Duration, time::Instant};
+use std::{
+    ops::RangeInclusive,
+    thread::sleep,
+    time::{Duration, Instant},
+};
 use tracing::info;
 use url::Url;
 
