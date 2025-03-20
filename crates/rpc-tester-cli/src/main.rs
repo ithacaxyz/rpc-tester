@@ -103,9 +103,8 @@ pub async fn wait_for_readiness<P: Provider<AnyNetwork>>(
             let range = tip2 - (block_size_range - 1)..=tip2;
             info!(?range, "testing block range");
             return Ok(range);
-        } else {
-            info!(?tip1, ?tip2, "rpc1 is behind rpc2, waiting for it to catch up");
         }
+        info!(?tip1, ?tip2, "rpc1 is behind rpc2, waiting for it to catch up");
 
         sleep();
     }
