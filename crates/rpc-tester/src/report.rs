@@ -31,7 +31,8 @@ pub(crate) fn report(results_by_block: ReportResults) -> eyre::Result<()> {
                 }
                 Err(TestError::Rpc1Err(err) | TestError::Rpc2Err(err)) => {
                     passed_title = false;
-                    println!("\n{title} ❌\n{err}");
+                    println!("\n{title} ❌");
+                    println!("    {name}: ❌ {}", err);
                 }
             }
         }

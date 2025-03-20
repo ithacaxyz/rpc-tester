@@ -4,7 +4,11 @@ use alloy_provider::{network::AnyNetwork, Provider, ProviderBuilder};
 use alloy_rpc_types::SyncStatus;
 use clap::Parser;
 use rpc_tester::RpcTester;
-use std::{ops::RangeInclusive, thread::sleep, time::Duration};
+use std::{
+    ops::RangeInclusive,
+    thread::sleep,
+    time::{Duration, Instant},
+};
 use tracing::info;
 use url::Url;
 
@@ -35,6 +39,10 @@ pub struct CliArgs {
     /// Whether to query every transacion from a block or just the first.
     #[arg(long, value_name = "ALL_TXES", default_value = "false")]
     pub use_all_txes: bool,
+
+    /// Maximum time to wait for syncing in seconds
+    #[arg(long, value_name = "TIMEOUT", default_value = "300")]
+    pub timeout: u64,
 }
 
 #[tokio::main]
@@ -70,9 +78,18 @@ pub async fn wait_for_readiness<P: Provider<AnyNetwork>>(
     block_size_range: u64,
 ) -> eyre::Result<RangeInclusive<u64>> {
     let sleep = || sleep(Duration::from_secs(5));
+    let args = CliArgs::parse();
+    let start_time = Instant::now();
+    let timeout = Duration::from_secs(args.timeout);
 
     // Waits until it's done syncing
     while let SyncStatus::Info(sync_info) = rpc1.syncing().await? {
+        if start_time.elapsed() > timeout {
+            return Err(eyre::eyre!(
+                "Timeout waiting for rpc1 to sync after {} seconds",
+                args.timeout
+            ));
+        }
         info!(?sync_info, "rpc1 still syncing");
         sleep();
     }
@@ -87,6 +104,7 @@ pub async fn wait_for_readiness<P: Provider<AnyNetwork>>(
             info!(?range, "testing block range");
             return Ok(range);
         }
+        info!(?tip1, ?tip2, "rpc1 is behind rpc2, waiting for it to catch up");
 
         sleep();
     }
