@@ -94,8 +94,8 @@ where
                 rpc!(self, get_uncle_count, BlockId::Hash(block_hash.into())),
                 rpc!(self, get_uncle_count, BlockId::Number(block_tag)),
                 rpc!(self, get_block_receipts, block_id),
-                rpc_raw!(self, getHeaderByNumber, AnyRpcHeader, (block_tag,)),
-                rpc_raw!(self, getHeaderByHash, AnyRpcHeader, (block_hash,)),
+                rpc_raw!(self, eth_getHeaderByNumber, AnyRpcHeader, (block_tag,)),
+                rpc_raw!(self, eth_getHeaderByHash, AnyRpcHeader, (block_hash,)),
                 rpc_raw!(self, reth_getBalanceChangesInBlock, BalanceChanges, (block_id,)),
                 rpc!(self, trace_block, block_id),
                 get_logs!(self, &Filter::new().select(block_number))
