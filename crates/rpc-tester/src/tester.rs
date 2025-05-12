@@ -169,7 +169,7 @@ where
 
         #[rustfmt::skip]
         report(vec![(
-            format!("{}..={}", start, end),
+            format!("{start}..={end}"),
             futures::future::join_all([
                 get_logs!(self, Filter::new().from_block(start).to_block(end)
             )])
