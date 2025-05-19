@@ -285,9 +285,9 @@ pub struct RpcTesterBuilder<P: Provider<AnyNetwork>> {
 impl<P: Provider<AnyNetwork>> RpcTesterBuilder<P> {
     /// Creates a new builder with default settings.
     pub const fn new(rpc1: P, rpc2: P) -> Self {
-        Self { 
-            rpc1, 
-            rpc2, 
+        Self {
+            rpc1,
+            rpc2,
             use_tracing: false,
             use_reth: false,
             use_all_txes: false,
