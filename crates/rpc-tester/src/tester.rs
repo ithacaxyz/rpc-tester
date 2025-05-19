@@ -44,6 +44,10 @@ pub struct RpcTester<P: Provider<AnyNetwork>> {
     /// Whether to call rpc transaction methods for every transaction. Otherwise, just the first of
     /// the block.
     use_all_txes: bool,
+    /// Maximum requests per second for rate limiting.
+    rate_limit_rps: Option<u32>,
+    /// Last timestamp for rate limiting.
+    last_request_time: tokio::sync::Mutex<std::time::Instant>,
 }
 
 impl<P: Provider<AnyNetwork>> RpcTester<P> {
@@ -196,6 +200,23 @@ where
         Ok((block, block_hash, block_tag, block_id))
     }
 
+    /// Apply rate limiting if configured.
+    /// Sleeps if necessary to maintain the configured rate limit.
+    async fn apply_rate_limit(&self) {
+        if let Some(rps) = self.rate_limit_rps {
+            let min_interval = std::time::Duration::from_secs_f64(1.0 / rps as f64);
+            let mut last_time = self.last_request_time.lock().await;
+            let now = std::time::Instant::now();
+            let elapsed = now.duration_since(*last_time);
+            if elapsed < min_interval {
+                let sleep_time = min_interval - elapsed;
+                debug!("Rate limiting: sleeping for {:?}", sleep_time);
+                tokio::time::sleep(sleep_time).await;
+            }
+            *last_time = std::time::Instant::now();
+        }
+    }
+
     /// Compares the response to a specific method between both rpcs. Only collects differences.
     ///
     /// If any namespace is disabled skip it.
@@ -214,6 +235,9 @@ where
         {
             return (name.to_string(), Ok(()));
         }
+
+        // Apply rate limiting if configured
+        self.apply_rate_limit().await;
 
         trace!("## {name}");
         let t = std::time::Instant::now();
@@ -254,12 +278,21 @@ pub struct RpcTesterBuilder<P: Provider<AnyNetwork>> {
     /// Whether to call rpc transaction methods for every transaction. Otherwise, just the first of
     /// the block.
     use_all_txes: bool,
+    /// Maximum requests per second for rate limiting.
+    rate_limit_rps: Option<u32>,
 }
 
 impl<P: Provider<AnyNetwork>> RpcTesterBuilder<P> {
     /// Creates a new builder with default settings.
     pub const fn new(rpc1: P, rpc2: P) -> Self {
-        Self { rpc1, rpc2, use_tracing: false, use_reth: false, use_all_txes: false }
+        Self {
+            rpc1,
+            rpc2,
+            use_tracing: false,
+            use_reth: false,
+            use_all_txes: false,
+            rate_limit_rps: None,
+        }
     }
 
     /// Enables or disables tracing calls.
@@ -281,6 +314,13 @@ impl<P: Provider<AnyNetwork>> RpcTesterBuilder<P> {
         self
     }
 
+    /// Sets the rate limit in requests per second.
+    /// If None, no rate limiting is applied.
+    pub const fn with_rate_limit(mut self, rps: Option<u32>) -> Self {
+        self.rate_limit_rps = rps;
+        self
+    }
+
     /// Builds and returns the [`RpcTester`].
     pub fn build(self) -> RpcTester<P> {
         RpcTester {
@@ -289,6 +329,8 @@ impl<P: Provider<AnyNetwork>> RpcTesterBuilder<P> {
             use_tracing: self.use_tracing,
             use_reth: self.use_reth,
             use_all_txes: self.use_all_txes,
+            rate_limit_rps: self.rate_limit_rps,
+            last_request_time: tokio::sync::Mutex::new(std::time::Instant::now()),
         }
     }
 }

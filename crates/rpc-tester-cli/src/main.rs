@@ -43,6 +43,11 @@ pub struct CliArgs {
     /// Maximum time to wait for syncing in seconds
     #[arg(long, value_name = "TIMEOUT", default_value = "300")]
     pub timeout: u64,
+
+    /// Maximum requests per second (rate limit).
+    /// If not provided, no rate limiting is applied.
+    #[arg(long, value_name = "RATE_LIMIT")]
+    pub rate_limit: Option<u32>,
 }
 
 #[tokio::main]
@@ -66,6 +71,7 @@ async fn main() -> eyre::Result<()> {
         .with_tracing(args.use_tracing)
         .with_reth(args.use_reth)
         .with_all_txes(args.use_all_txes)
+        .with_rate_limit(args.rate_limit)
         .build()
         .run(block_range)
         .await
