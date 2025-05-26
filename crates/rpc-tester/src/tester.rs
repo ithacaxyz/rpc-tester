@@ -2,7 +2,7 @@
 
 use super::{MethodName, TestError};
 use crate::{get_logs, report::report, rpc, rpc_raw, rpc_with_block};
-use alloy_primitives::{Address, BlockHash, BlockNumber, U256};
+use alloy_primitives::{Address, BlockHash, BlockNumber, B256, U256};
 use alloy_provider::{
     ext::{DebugApi, TraceApi},
     network::{AnyNetwork, AnyRpcBlock, AnyRpcHeader, TransactionResponse},
@@ -102,7 +102,11 @@ where
                 rpc_raw!(self, eth_getHeaderByHash, AnyRpcHeader, (block_hash,)),
                 rpc_raw!(self, reth_getBalanceChangesInBlock, BalanceChanges, (block_id,)),
                 rpc!(self, trace_block, block_id),
-                get_logs!(self, &Filter::new().select(block_number))
+                get_logs!(self, &Filter::new().select(block_number)),
+                get_logs!(self, &Filter::new().select(block_number).address(vec![
+                    "0x6b175474e89094c44da98b954eedeac495271d0f".parse::<Address>().unwrap(), // dai
+                    "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48".parse::<Address>().unwrap(), // usdc
+                ]))
             ];
 
             tests.extend(block_calls);
@@ -171,12 +175,19 @@ where
         let start = *block_range.start();
         let end = *block_range.end();
 
+        // ERC-20 Transfer event signature: Transfer(address,address,uint256)
+        let transfer_event_signature =
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+                .parse::<B256>()
+                .unwrap();
+
         #[rustfmt::skip]
         report(vec![(
             format!("{start}..={end}"),
             futures::future::join_all([
-                get_logs!(self, Filter::new().from_block(start).to_block(end)
-            )])
+                get_logs!(self, Filter::new().from_block(start).to_block(end)),
+                get_logs!(self, Filter::new().from_block(start).to_block(end).event_signature(transfer_event_signature))
+            ])
             .await,
         )])?;
 
