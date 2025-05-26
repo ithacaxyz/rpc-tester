@@ -186,6 +186,10 @@ where
             format!("{start}..={end}"),
             futures::future::join_all([
                 get_logs!(self, Filter::new().from_block(start).to_block(end)),
+                get_logs!(self, Filter::new().from_block(start).to_block(end).address(vec![
+                    "0x6b175474e89094c44da98b954eedeac495271d0f".parse::<Address>().unwrap(), // dai
+                    "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48".parse::<Address>().unwrap(), // usdc
+                ])),
                 get_logs!(self, Filter::new().from_block(start).to_block(end).event_signature(transfer_event_signature))
             ])
             .await,
