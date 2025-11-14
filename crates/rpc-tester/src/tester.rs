@@ -5,7 +5,7 @@ use crate::{get_logs, report::report, rpc, rpc_raw, rpc_with_block};
 use alloy_primitives::{Address, BlockHash, BlockNumber, B256, U256};
 use alloy_provider::{
     ext::{DebugApi, TraceApi},
-    network::{AnyNetwork, AnyRpcBlock, AnyRpcHeader, TransactionResponse},
+    network::{AnyNetwork, AnyRpcBlock, TransactionResponse},
     Provider,
 };
 use alloy_rpc_types::{BlockId, BlockNumberOrTag, Filter};
@@ -98,8 +98,6 @@ where
                 rpc!(self, get_uncle_count, BlockId::Hash(block_hash.into())),
                 rpc!(self, get_uncle_count, BlockId::Number(block_tag)),
                 rpc!(self, get_block_receipts, block_id),
-                rpc_raw!(self, eth_getHeaderByNumber, AnyRpcHeader, (block_tag,)),
-                rpc_raw!(self, eth_getHeaderByHash, AnyRpcHeader, (block_hash,)),
                 rpc_raw!(self, reth_getBalanceChangesInBlock, BalanceChanges, (block_id,)),
                 rpc!(self, trace_block, block_id),
                 get_logs!(self, &Filter::new().select(block_number)),
