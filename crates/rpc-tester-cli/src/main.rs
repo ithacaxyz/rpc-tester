@@ -106,7 +106,8 @@ pub async fn wait_for_readiness<P: Provider<AnyNetwork>>(
         let tip2 = rpc2.get_block_number().await?;
 
         if tip1 >= tip2 || tip2 - tip1 <= 5 {
-            let range = tip2 - (block_size_range - 1)..=tip2;
+            let common = tip1.min(tip2);
+            let range = common - (block_size_range - 1)..=common;
             info!(?range, "testing block range");
             return Ok(range);
         }
